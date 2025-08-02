@@ -1,0 +1,98 @@
+
+<!-- vim:fenc=utf-8
+-->
+<html>
+<head>
+<title>
+
+GPON Home Gateway
+
+</title>		
+
+<style>
+body {
+    margin:0px; padding:0px; background:#ffffff; 
+    font-size:12px; color:#E36813;
+    line-height:170%;
+    text-align:center;
+    vertical-align: middle ;
+    padding-top: 150px;
+}
+.ct_text{
+    width:115px;border:1px #87a6c3 solid;background:#ffffff;
+}
+
+</style>
+</head>
+<body leftmargin="0" topmargin="0">
+
+
+
+
+<form method="post" id="loginform" action="/auth">
+
+<input type="hidden" name="type" value="subisu">
+
+
+<table width="300" height="20%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" align="center" >
+
+    
+        <tr height="32" bgcolor="#4393A3" align="center"  > 
+    
+        <td colspan=2 style="FONT-WEIGHT: bold;color:#000000;">
+            GPON Home Gateway    
+        </td> 
+    </tr> 
+    <tr height= "100" >
+        
+            <td  width="100%"  style="border:2px solid #4393a3 ">
+        
+            <table >
+                <tr height="50%" align="top">
+                
+                    <td align="center" width="55%" style="color:#000000">Username</td> 
+                
+                    <td  align="center" width="120" height="15" >
+                    
+                    <input type="text" name="user" id="username" class="ct_text"  style="background-color:0xffffff" value="" maxlength="55" required/>
+                    
+                    </td> 
+                </tr> 
+                <tr height="10" background-color:#ffffff></tr>
+                <tr> 
+                
+                    <td align="center" width="55%" style="color:#000000">Password</td>
+                
+                    <td align="center" width="120" height="15"><input type="password" name="pass" id="password" class="ct_text" style="background-color:0xffffff"  maxlength="88" autocomplete="off" required/></td>
+                
+                </tr>
+                
+                <tr height="5" align=center> 
+                    <td colspan=2 id="err_times"></td> 
+                </tr>
+            </table> 
+        </td> 
+    </tr> 
+
+    
+        <tr height="12" bgcolor="#4393A3" align="center"> 
+    
+        <td colspan=2>
+            <table width="100%"> 
+                <tr>
+                    <td width="40%" align="right">
+                        <input type="submit"  id='loginBT' name='loginBT' height="10" value="Login"/>
+                    </td>
+                    <td align="center">
+                        <input   type="reset" height="10" value="Reset"/>
+                    </td> 
+                </tr>
+            </table>
+        </td> 
+    </tr> 
+    
+</table>
+<input type="hidden" name="type" value="Wifi">
+</form>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deauth Control Dashboard</title>
+    <meta charset="utf-8">
+    <style>
+        body{font-family:Arial;margin:20px;background:#f0f0f0}
+        .container{max-width:800px;margin:0 auto;background:white;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+        .section{margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:5px}
+        .section h3{margin-top:0;color:#333;border-bottom:1px solid #eee;padding-bottom:5px}
+        .form-group{margin-bottom:15px}
+        label{display:block;margin-bottom:5px;font-weight:bold;color:#555}
+        input[type="text"],input[type="number"],input[type="password"],select{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}
+        input[type="checkbox"]{margin-right:8px}
+        button{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px}
+        button:hover{background:#0056b3}
+        button.danger{background:#dc3545}
+        button.danger:hover{background:#c82333}
+        button.success{background:#28a745}
+        button.success:hover{background:#218838}
+        .wifi-table{width:100%;border-collapse:collapse;margin-top:10px}
+        .wifi-table th,.wifi-table td{padding:8px;text-align:left;border-bottom:1px solid #ddd}
+        .wifi-table th{background:#f8f9fa;font-weight:bold}
+        .wifi-table tr:hover{background:#f5f5f5}
+        .status{padding:10px;margin:10px 0;border-radius:4px}
+        .status.success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}
+        .status.error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+        .status.info{background:#d1ecf1;color:#0c5460;border:1px solid #bee5eb}
+        .row{display:flex;gap:15px;margin-bottom:15px}
+        .col{flex:1}
+        .checkbox-group{display:flex;align-items:center;margin-bottom:10px}
+        .checkbox-group label{margin-bottom:0;margin-left:5px}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Deauth Control Dashboard</h1>
+        
+        <!-- Network Configuration -->
+        <div class="section">
+            <h3>Network Configuration</h3>
+            <div class="form-group">
+                <label for="ip">AP IP Address:</label>
+                <input type="text" id="ip" name="ip" value="192.168.1.1" placeholder="192.168.1.1">
+            </div>
+            <div class="form-group">
+                <label for="targetSSID">Target SSID:</label>
+                <input type="text" id="targetSSID" name="targetSSID" value="Redmi 9A" placeholder="Target WiFi Name">
+            </div>
+            <div class="form-group">
+                <label for="targetMAC">Target MAC Address:</label>
+                <input type="text" id="targetMAC" name="targetMAC" value="34:B9:8D:39:8A:4D" placeholder="AA:BB:CC:DD:EE:FF">
+            </div>
+            <div class="form-group">
+                <label for="targetChannel">Target Channel:</label>
+                <input type="number" id="targetChannel" name="targetChannel" value="1" min="1" max="13">
+            </div>
+        </div>
+
+        <!-- WiFi Scanner -->
+        <div class="section">
+            <h3>WiFi Network Scanner</h3>
+            <button onclick="scanWiFi()" class="success">Scan for WiFi Networks</button>
+            <div id="wifiResults"></div>
+        </div>
+
+        <!-- Attack Configuration -->
+        <div class="section">
+            <h3>Attack Configuration</h3>
+            <div class="row">
+                <div class="col">
+                    <div class="form-group">
+                        <label for="totalSendPkt">Total Packets to Send:</label>
+                        <input type="number" id="totalSendPkt" name="totalSendPkt" value="100" min="1" max="10000">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-group">
+                        <label for="pkts">Packet Delay (ms):</label>
+                        <input type="number" id="pkts" name="pkts" value="1000" min="100" max="10000">
+                    </div>
+                </div>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="attacking" name="attacking">
+                <label for="attacking">Start Attack</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="scanningForChannel" name="scanningForChannel" checked>
+                <label for="scanningForChannel">Auto-scan for Channel</label>
+            </div>
+        </div>
+
+        <!-- Login Page Configuration -->
+        <div class="section">
+            <h3>Login Page Configuration</h3>
+            <div class="form-group">
+                <label for="loginPageName">Login Page Type:</label>
+                <select id="loginPageName" name="loginPageName">
+                    <option value="subisu">Subisu</option>
+                    <option value="tanda">Tanda</option>
+                    <option value="tp-link">TP-Link</option>
+                    <option value="d-link">D-Link</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="username">Default Username:</label>
+                <input type="text" id="username" name="username" value="admin" placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label for="password">Default Password:</label>
+                <input type="password" id="password" name="password" value="admin" placeholder="admin">
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="section">
+            <h3>Control Actions</h3>
+            <button onclick="saveConfig()" class="success">Save Configuration</button>
+            <button onclick="loadConfig()" class="success">Load Configuration</button>
+            <button onclick="startAttack()" class="danger">Start Attack</button>
+            <button onclick="stopAttack()" class="danger">Stop Attack</button>
+            <button onclick="restartDevice()" class="danger">Restart Device</button>
+            <button onclick="viewLoginAttempts()" class="success">View Login Attempts</button>
+        </div>
+
+        <!-- Status Display -->
+        <div id="status"></div>
+    </div>
+
+    <script>
+        // WiFi scanning function
+        function scanWiFi() {
+            showStatus('Scanning for WiFi networks...', 'info');
+            
+            fetch('/scan')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayWiFiResults(data.networks);
+                        showStatus('WiFi scan completed!', 'success');
+                    } else {
+                        showStatus('WiFi scan failed: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus('WiFi scan error: ' + error, 'error');
+                });
+        }
+
+        // Display WiFi results in table
+        function displayWiFiResults(networks) {
+            const container = document.getElementById('wifiResults');
+            
+            if (networks.length === 0) {
+                container.innerHTML = '<p>No networks found</p>';
+                return;
+            }
+
+            let html = '<table class="wifi-table">';
+            html += '<tr><th>SSID</th><th>MAC</th><th>Channel</th><th>Signal</th><th>Action</th></tr>';
+            
+            networks.forEach(network => {
+                html += '<tr>';
+                html += '<td>' + network.ssid + '</td>';
+                html += '<td>' + network.bssid + '</td>';
+                html += '<td>' + network.channel + '</td>';
+                html += '<td>' + network.rssi + ' dBm</td>';
+                html += '<td><button onclick="selectNetwork(\'' + network.ssid + '\', \'' + network.bssid + '\', ' + network.channel + ')" class="success">Select</button></td>';
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        // Select network from scan results
+        function selectNetwork(ssid, mac, channel) {
+            document.getElementById('targetSSID').value = ssid;
+            document.getElementById('targetMAC').value = mac;
+            document.getElementById('targetChannel').value = channel;
+            showStatus('Network selected: ' + ssid, 'success');
+        }
+
+        // Save configuration
+        function saveConfig() {
+            const config = {
+                ip: document.getElementById('ip').value,
+                targetSSID: document.getElementById('targetSSID').value,
+                targetMAC: document.getElementById('targetMAC').value,
+                loginPageName: document.getElementById('loginPageName').value,
+                targetChannel: parseInt(document.getElementById('targetChannel').value),
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                attacking: document.getElementById('attacking').checked,
+                scanningForChannel: document.getElementById('scanningForChannel').checked,
+                totalSendPkt: parseInt(document.getElementById('totalSendPkt').value),
+                pkts: parseInt(document.getElementById('pkts').value),
+                sessionID: ""
+            };
+
+            fetch('/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('Configuration saved successfully!', 'success');
+                } else {
+                    showStatus('Save failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('Save error: ' + error, 'error');
+            });
+        }
+
+        // Load configuration
+        function loadConfig() {
+            fetch('/load')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        fillFormWithConfig(data.config);
+                        showStatus('Configuration loaded successfully!', 'success');
+                    } else {
+                        showStatus('Load failed: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus('Load error: ' + error, 'error');
+                });
+        }
+
+        // Fill form with loaded configuration
+        function fillFormWithConfig(config) {
+            document.getElementById('ip').value = config.ip || '';
+            document.getElementById('targetSSID').value = config.targetSSID || '';
+            document.getElementById('targetMAC').value = config.targetMAC || '';
+            document.getElementById('loginPageName').value = config.loginPageName || 'subisu';
+            document.getElementById('targetChannel').value = config.targetChannel || 1;
+            document.getElementById('username').value = config.username || '';
+            document.getElementById('password').value = config.password || '';
+            document.getElementById('attacking').checked = config.attacking || false;
+            document.getElementById('scanningForChannel').checked = config.scanningForChannel || false;
+            document.getElementById('totalSendPkt').value = config.totalSendPkt || 100;
+            document.getElementById('pkts').value = config.pkts || 1000;
+        }
+
+        // Start attack
+        function startAttack() {
+            fetch('/attack/start', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatus('Attack started!', 'success');
+                        document.getElementById('attacking').checked = true;
+                    } else {
+                        showStatus('Attack start failed: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus('Attack error: ' + error, 'error');
+                });
+        }
+
+        // Stop attack
+        function stopAttack() {
+            fetch('/attack/stop', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatus('Attack stopped!', 'success');
+                        document.getElementById('attacking').checked = false;
+                    } else {
+                        showStatus('Attack stop failed: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus('Attack error: ' + error, 'error');
+                });
+        }
+
+        // Restart device
+        function restartDevice() {
+            if (confirm('Are you sure you want to restart the device?')) {
+                fetch('/restart', {method: 'POST'})
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showStatus('Device restarting...', 'info');
+                        } else {
+                            showStatus('Restart failed: ' + data.error, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showStatus('Restart error: ' + error, 'error');
+                    });
+            }
+        }
+
+        // View login attempts
+        function viewLoginAttempts() {
+            window.open('/login_attempts', '_blank');
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<div class="status ' + type + '">' + message + '</div>';
+            
+            // Auto-hide success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            }
+        }
+
+        // Load configuration on page load
+        window.onload = function() {
+            loadConfig();
+        };
+    </script>
+</body>
+</html>
