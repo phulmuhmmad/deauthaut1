@@ -4,12 +4,12 @@
     <title>Deauth Control Dashboard</title>
     <meta charset="utf-8">
     <style>
-        body{font-family:Arial;margin:20px;background:#f0f0f0}
-        .container{max-width:800px;margin:0 auto;background:white;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .section{margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:5px}
-        .section h3{margin-top:0;color:#333;border-bottom:1px solid #eee;padding-bottom:5px}
+        body{font-family:Arial;margin:20px;background:#0a0a0a;color:#fff;}
+        .container{max-width:800px;margin:0 auto;background:rgb(4, 4, 4);padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(165, 146, 146, 0.1)}
+        .section{margin-bottom:20px;padding:15px;border:1px solid #323131;border-radius:5px}
+        .section h3{margin-top:0;color:#e5eae7;border-bottom:1px solid #706e6e;padding-bottom:5px}
         .form-group{margin-bottom:15px}
-        label{display:block;margin-bottom:5px;font-weight:bold;color:#555}
+        label{display:block;margin-bottom:5px;font-weight:bold;color:#899490}
         input[type="text"],input[type="number"],input[type="password"],select{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}
         input[type="checkbox"]{margin-right:8px}
         button{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px}
@@ -122,6 +122,9 @@
             <button onclick="startAttack()" class="danger">Start Attack</button>
             <button onclick="stopAttack()" class="danger">Stop Attack</button>
             <button onclick="restartDevice()" class="danger">Restart Device</button>
+           <br>
+           <br>
+            <button onclick="logout()" class="danger">Logout</button>
             <button onclick="viewLoginAttempts()" class="success">View Login Attempts</button>
         </div>
 
@@ -130,6 +133,10 @@
     </div>
 
     <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = '/login';
+            
+        }
         // WiFi scanning function
         function scanWiFi() {
             showStatus('Scanning for WiFi networks...', 'info');
@@ -307,6 +314,12 @@
             window.open('/login_attempts', '_blank');
         }
 
+        // Logout
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            window.location.href = '/login';
+        }
+
         // Show status message
         function showStatus(message, type) {
             const statusDiv = document.getElementById('status');
@@ -322,6 +335,7 @@
 
         // Load configuration on page load
         window.onload = function() {
+            
             loadConfig();
         };
     </script>

