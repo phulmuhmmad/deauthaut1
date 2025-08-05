@@ -60,7 +60,7 @@
         <!-- WiFi Scanner -->
         <div class="section">
             <h3>WiFi Network Scanner</h3>
-            <button onclick="scanWiFi()" class="success">Scan for WiFi Networks</button>
+            <button onclick="scanWiFi('for_one_target')" class="success">Scan for WiFi Networks</button>
             <div id="wifiResults"></div>
         </div>
 
@@ -113,7 +113,24 @@
                 <input type="password" id="password" name="password" value="admin" placeholder="admin">
             </div>
         </div>
+            <!-- Select Multiple Targets -->
+        <div class="section">
+            <h3>Select Multiple Targets</h3>
+            <div class="form-group">
+                <input type="checkbox" id="multipleTargets" name="multipleTargets" onchange="toggleTargetsList()">
+                <label for="multipleTargets">Enable Multiple Targets</label>
+                <div id="multipleTargetsList" style="display:none; margin-left: 20px;">
+                    <button class="success" onclick="scanWiFi('for_multiple_targets')">Scan Targets</button>
+                    <div id="targetsContainer" style="margin-top: 10px;">
+                        <!-- Dynamic targets will be appended here -->
+                    </div>
+                    <button class="success" onclick="saveSelectedTargets()">Save Selected Targets</button>
+                </div>
+            </div>
+        </div>
 
+      
+      
         <!-- Control Buttons -->
         <div class="section">
             <h3>Control Actions</h3>
@@ -137,15 +154,21 @@
             window.location.href = '/login';
             
         }
+        let selectedTargets = [];
+
         // WiFi scanning function
-        function scanWiFi() {
+        function scanWiFi(type) {
             showStatus('Scanning for WiFi networks...', 'info');
             
             fetch('/scan')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        displayWiFiResults(data.networks);
+                        if (type === 'for_one_target') {
+                            displayWiFiResults(data.networks);
+                        } else if (type === 'for_multiple_targets') {
+                            displayTargetsList(data.networks);
+                        }
                         showStatus('WiFi scan completed!', 'success');
                     } else {
                         showStatus('WiFi scan failed: ' + data.error, 'error');
@@ -182,6 +205,77 @@
             container.innerHTML = html;
         }
 
+        
+        function displayTargetsList(networks) {
+                const container = document.getElementById('targetsContainer');
+                container.innerHTML = '';
+
+                if (networks.length === 0) {
+                    container.innerHTML = '<p>No targets found</p>';
+                    return;
+                }
+
+                networks.forEach((network, index) => {
+                    const targetId = `target_${index}`;
+                    const isChecked = selectedTargets.some(t => t.mac === network.bssid);
+
+                    const targetElement = `
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="${targetId}" value="${network.bssid}" 
+                                data-ssid="${network.ssid}" data-channel="${network.channel}" ${isChecked ? 'checked' : ''} 
+                                onchange="toggleTargetSelection(this)">
+                            <label for="${targetId}">${network.ssid} (${network.bssid}) [CH:${network.channel}]</label>
+                        </div>
+                    `;
+                    container.innerHTML += targetElement;
+                });
+            }
+      
+            // Handle checkbox toggle
+        function toggleTargetSelection(checkbox) {
+            const mac = checkbox.value;
+            const ssid = checkbox.getAttribute('data-ssid');
+            const channel = checkbox.getAttribute('data-channel');
+
+            if (checkbox.checked) {
+                selectedTargets.push({ ssid, mac, channel });
+            } else {
+                selectedTargets = selectedTargets.filter(t => t.mac !== mac);
+            }
+        }
+        // Save selected targets to backend
+        function saveSelectedTargets() {
+            fetch('/save_targets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targets: selectedTargets })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('Targets saved successfully!', 'success');
+                } else {
+                    showStatus('Save failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('Save error: ' + error, 'error');
+            });
+        }
+
+        // Load saved targets from backend
+            function loadTargets() {
+                fetch('/load_targets')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            selectedTargets = data.targets || [];
+                            if (document.getElementById('multipleTargets').checked) {
+                                scanWiFi('for_multiple_targets'); // Rebuild UI with checked state
+                            }
+                        }
+                    });
+            }
         // Select network from scan results
         function selectNetwork(ssid, mac, channel) {
             document.getElementById('targetSSID').value = ssid;
@@ -314,6 +408,15 @@
             window.open('/login_attempts', '_blank');
         }
 
+        // Multiple Target  
+        function toggleTargetsList(){
+            var checkBox = document.getElementById('multipleTargets');
+            var targetsList = document.getElementById('multipleTargetsList');
+            targetsList.style.display = checkBox.checked ? 'block' : 'none';
+
+        }
+
+
         // Logout
         function logout() {
             localStorage.removeItem('isLoggedIn');
@@ -335,6 +438,7 @@
 
         // Load configuration on page load
         window.onload = function() {
+            loadTargets();
             
             loadConfig();
         };
